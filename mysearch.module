@@ -1,0 +1,86 @@
+<?php
+
+/**
+ * @file
+ * My search module.
+ */
+
+/**
+ * Implements hook_permission().
+ */
+function mysearch_permission() {
+  return array(
+    'access mysearch' => array(
+        'title' => 'Access My Search',
+        'description' => 'Allows a user to access search results',
+      )
+    );
+}
+
+
+/**
+ * Implements hook_menu().
+ */
+function mysearch_menu() {
+  $items['mysearch/%'] = array(
+    'title' => 'Search',
+    'page callback' => 'mysearch_searchpage',
+    'page arguments' => array(1),
+    'access arguments' => array('access mysearch'),
+    'type' => MENU_SUGGESTED_ITEM,
+  );
+  return $items;
+}
+
+
+/**
+ * Menu callback provides a simple list of nodes matching the
+ * search term Example: hitting the URL:
+ *   http://domain.com/mysearch/example
+ * will return a list of links to nodes which have the word
+ * example in them.
+ */
+function mysearch_searchpage($searchterm) {
+  // Make title.
+  drupal_set_title(t('Search for !searchterm', array(
+    '!searchterm' => $searchterm,
+  )));
+
+  // Search.
+  $nodes = mysearch_mysearch($searchterm);
+
+  // In case if no result.
+  if ($nodes === FALSE) {
+    return t('There is no result...');
+  }
+
+  // Theme.
+  $search_results = '<ul>';
+  foreach ($nodes as $node) {
+    $link = l($node->title, 'node/' . $node->nid);
+    $search_results .= '<li>' . $link . '</li>';
+  }
+  $search_results .= '</ul>';
+
+  return $search_results;
+}
+
+/**
+ * Custom search nodes function.
+ */
+function mysearch_mysearch($searchterm) {
+  $query = db_select('node', 'n');
+  $query->innerJoin('field_revision_body', 'frb', 'n.nid = frb.entity_id');
+  $query->fields('n', array('nid', 'title'));
+  $query->fields('frb', array('body_value'));
+
+  // All searchable fields.
+  $like_cond = db_or();
+  $like_cond->condition('title', '%' . db_like($searchterm) . '%', 'LIKE');
+  $like_cond->condition('body_value', '%' . db_like($searchterm) . '%', 'LIKE');
+  $query->condition($like_cond);
+
+  // Execute and fetch.
+  $nodes = $query->execute()->fetchAll();
+  return count($nodes) == 0 ? FALSE : $nodes;
+}
